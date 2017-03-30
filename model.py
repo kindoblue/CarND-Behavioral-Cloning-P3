@@ -1,31 +1,44 @@
+
 from keras.models import Sequential
 from keras.layers import Convolution2D, Dense, Flatten, Lambda, Cropping2D
+from keras.optimizers import Adam
+from keras.callbacks import EarlyStopping, ModelCheckpoint
+
 import pandas as pd
 from sklearn.model_selection import train_test_split
 from sklearn.utils import shuffle
 import os
 import numpy as np
 import cv2
+import matplotlib.pyplot as plt
 
 class CNNModel:
 
-    def __init__(self):
-        self.image_shape = (160, 320, 3)
-        self.current_path = ''
+    def __init__(self, csv_path):
 
-    def load_csv(self, _path_to_csv):
-        """Read the csv and return the train and validation 
-           sets as pandas dataframes"""
+        # the shape of the images from the simulator
+        self.image_shape = (160, 320, 3)
+
+        # column names
+        self.columns = ('center', 'left', 'right', 'angle', 'throttle', 'break', 'speed')
+
+        self.angle_corr = {'center': 0.0, 'left': 0.22, 'right': -0.22}
+
+        # path to csv file
+        self.csv_path = csv_path
 
         # save the current path, to be used later when loading
         # the images
-        self.current_path = os.path.dirname(_path_to_csv)
+        self.current_path = os.path.dirname(csv_path) + '/IMG/'
+
+        self.learning_rate = 2e-4
+
+    def load_csv(self):
+        """Read the csv and return the train and validation 
+           sets as pandas dataframes"""
 
         # read the dataframe from the cvs
-        df = pd.read_csv(_path_to_csv,
-                         header=None,
-                         names=('center', 'left', 'right', 'angle',
-                                'throttle', 'break', 'speed'))
+        df = pd.read_csv(self.csv_path, header=None, names=self.columns)
 
         # return two dataframes, one for training and the other for
         # validation using sklearn
@@ -44,7 +57,7 @@ class CNNModel:
 
         # image pre-processing: crop the images to simplify the scene and
         # keep only the relevant parts
-        _model.add(Cropping2D(cropping=((60, 20), (0, 0)),
+        _model.add(Cropping2D(cropping=((55, 0), (0, 0)),
                               input_shape=self.image_shape))
 
         # cnn from nvidia paper:
@@ -88,14 +101,19 @@ class CNNModel:
                          activation='relu',
                          name='dense_3'))
 
-        _model.add(Dense(1, name='dense_4'))
+        _model.add(Dense(1, name='dense_4'))  # NO RELU AFTER! damn cut&paste
 
-        _model.compile(loss='mse', optimizer='adam')
+        adam = Adam(lr=self.learning_rate)
+
+        _model.compile(loss='mse', optimizer=adam)
 
         return _model
 
     def generator(self, _data, _batch_size):
-        """Returns a generator"""
+        """Returns a generator. For every batch, we choose randomly the
+           center, right or left camera, applying the angle correction if
+           needed. You get 60% of the times the center camera, remaining 20% 
+           right and 20% left"""
         while 1:
 
             # split in chucks
@@ -104,13 +122,22 @@ class CNNModel:
                 # get the nth chunk (slicing dataframe slices it by rows, good)
                 sample = _data[offset : offset + _batch_size]
 
+                # select center, right or left column. 60% prob is center,
+                # 20% is right or left
+                col = np.random.choice(self.columns,
+                                       1,
+                                       p=[0.7, 0.15, 0.15, 0, 0, 0, 0])[0]
+
+                # TODO
+                #col = 'center'
+
                 # get image paths as an array
-                paths = sample[:]['center'].values
+                paths = sample[:][col].values
 
                 # adjust the path of the images using the current path stored
                 # before (which is the dir containing the csv)
                 # so we can run on different systems
-                paths = map(lambda x: self.current_path + '/IMG/' + x.split('/')[-1], paths)
+                paths = map(lambda x: self.current_path + x.split('/')[-1], paths)
 
                 # preallocate the image array
                 shape = (len(sample),) + self.image_shape
@@ -119,10 +146,15 @@ class CNNModel:
                 # load the images
                 for idx, image_path in enumerate(paths):
                     image = cv2.imread(image_path)
+                    assert(image is not None)  # otherwise we keep going even...
                     images[idx] = image
 
-                # now get the steering angles
-                angles = sample[:]['angle'].values
+                # now get the steering angle correction based on the
+                # camera we selected
+                corr = self.angle_corr[col]
+
+                # adjust the angles and return as a numpy array
+                angles = sample[:]['angle'].apply(lambda x: x + corr).values
 
                 # return the batch shuffled
                 yield shuffle(images, angles)
@@ -131,7 +163,7 @@ class CNNModel:
     def train(self):
 
         # get the train and validation sets
-        df_train, df_valid = self.load_csv('/Users/ice/Development/driving/driving_log.csv')
+        df_train, df_valid = self.load_csv()
 
         # create the cnn
         model = self.build_model()
@@ -140,17 +172,31 @@ class CNNModel:
         train_gen = self.generator(df_train, _batch_size=32)
         valid_gen = self.generator(df_valid, _batch_size=32)
 
+        checkpoint = ModelCheckpoint('model.h5', monitor='val_loss', verbose=1,
+                                     save_best_only=True,
+                                     save_weights_only=False, mode='auto')
+
+        early_stopping = EarlyStopping(monitor='val_loss', min_delta=0,
+                                       patience=3, verbose=1,
+                                       mode='auto')
         # train the model
-        model.fit_generator(train_gen,
+        history = model.fit_generator(train_gen,
                             samples_per_epoch=len(df_train),
                             validation_data=valid_gen,
                             nb_val_samples=len(df_valid),
-                            nb_epoch=8)
+                            nb_epoch=10,
+                            callbacks=[checkpoint, early_stopping])
 
-        # save the model
-        model.save('model.h5')
+        # summarize history for loss
+        plt.plot(history.history['loss'])
+        plt.plot(history.history['val_loss'])
+        plt.title('model loss')
+        plt.ylabel('loss')
+        plt.xlabel('epoch')
+        plt.legend(['train', 'test'], loc='upper left')
 
 
 if __name__ == '__main__':
-    the_model = CNNModel()
+    the_model = CNNModel('/Users/ice/Development/driving/driving_log.csv')
     the_model.train()
+    pass
