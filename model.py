@@ -15,6 +15,39 @@ import numpy as np
 import cv2
 import matplotlib.pyplot as plt
 
+
+def normalise_dataframe(_df, _nb_bins=10, _sample_per_bin=2000):
+    """Normalise the dataframe in respect of steering angles"""
+
+    # get min and max angles in the dataframe
+    max_angle = _df['angle'].max()
+    min_angle = _df['angle'].min()
+
+    # create equally spaced bins from min angle to max angle
+    lin = np.linspace(min_angle, max_angle, _nb_bins)
+
+    # generator for tuples (start, stop) in the entire range
+    tuples = ((a, b) for a, b in zip(lin[::2], lin[1::2]))
+
+    # prepare the result dataframe as an empy dataframe with same columns
+    res_df = pd.DataFrame(columns=_df.columns)
+
+    # cycle on each slot
+    for start, end in tuples:
+
+        # filter dataframe for angles in the brackets
+        filtered = _df[(_df['angle'] >= start) & (_df['angle'] <= end)]
+
+        # flag if we need to sample with replacement
+        replace = len(filtered) < _sample_per_bin
+
+        # sample the filtered dataframe and append to the output dataframe
+        res_df = res_df.append(filtered.sample(_sample_per_bin, replace=replace))
+
+    # we are done
+    return res_df
+
+
 class CNNModel:
 
     def __init__(self, csv_path):
@@ -25,7 +58,7 @@ class CNNModel:
         # column names
         self.columns = ('center', 'left', 'right', 'angle', 'throttle', 'break', 'speed')
 
-        self.angle_corr = {'center': 0.0, 'left': 0.18, 'right': -0.18}
+        self.angle_corr = {'center': 0.0, 'left': 0.20, 'right': -0.20}
 
         # path to csv file
         self.csv_path = csv_path
@@ -38,6 +71,10 @@ class CNNModel:
 
         self.batch_size = 128
 
+        self.epochs = 8
+
+        self.augmentation_factor = 4
+
     def load_csv(self):
         """Read the csv and return the train and validation 
            sets as pandas dataframes"""
@@ -45,9 +82,15 @@ class CNNModel:
         # read the dataframe from the cvs
         df = pd.read_csv(self.csv_path, header=None, names=self.columns)
 
+        # normalize the dataframe, boosting the less represented angles
+        # at the same levels of others
+        norm = normalise_dataframe(df, _nb_bins=10, _sample_per_bin=3000)
+
+        # norm.hist(column='angle', bins=10)
+
         # return two dataframes, one for training and the other for
         # validation using sklearn
-        return train_test_split(df, test_size=.2)
+        return train_test_split(norm, test_size=.2)
 
 
     def build_model(self):
@@ -121,6 +164,8 @@ class CNNModel:
            right and 20% left"""
 
         if _is_training:
+            # in case of training, we are using an util generator
+            # for data augmenting
             datagen = ImageDataGenerator(
                 rotation_range=4,
                 width_shift_range=0.03,
@@ -135,8 +180,8 @@ class CNNModel:
                 # get the nth chunk (slicing dataframe slices it by rows, good)
                 sample = _data[offset : offset + _batch_size]
 
-                # select center, right or left column. 60% prob is center,
-                # 20% is right or left
+                # select center, right or left columns according a set of probs
+                # for experimentation
                 col = np.random.choice(self.columns,
                                        1,
                                        p=[1.0, 0, 0, 0, 0, 0, 0])[0]
@@ -156,7 +201,7 @@ class CNNModel:
                 # load the images
                 for idx, image_path in enumerate(paths):
                     image = cv2.imread(image_path)
-                    # image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+                    image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
                     assert(image is not None)  # otherwise we keep going even...
                     images[idx] = image
 
@@ -168,10 +213,10 @@ class CNNModel:
                 angles = sample[:]['angle'].apply(lambda x: x + corr).values
 
                 if _is_training:
-                    for _ in range(4):
+                    for _ in range(self.augmentation_factor):
                         yield datagen.flow(images, angles).next()
                 else:
-                    yield(images, angles)
+                    yield shuffle(images, angles)
 
     def train(self):
 
@@ -205,10 +250,10 @@ class CNNModel:
                                        mode='auto')
         # train the model
         history = model.fit_generator(train_gen,
-                            samples_per_epoch=4*len(df_train),
+                            samples_per_epoch=self.augmentation_factor * len(df_train),
                             validation_data=valid_gen,
                             nb_val_samples=len(df_valid),
-                            nb_epoch=10,
+                            nb_epoch=self.epochs,
                             callbacks=[checkpoint, early_stopping])
 
         # summarize history for loss
@@ -222,5 +267,7 @@ class CNNModel:
 
 
 if __name__ == '__main__':
-    the_model = CNNModel('/Users/ice/Development/AA/run1/driving_log.csv')
+    # the_model = CNNModel('/Users/ice/Development/AA/run1/driving_log.csv')
+    the_model = CNNModel('/home/carnd/run1/driving_log.csv')
+
     the_model.train()

@@ -1,3 +1,6 @@
+[//]: # (Image References)
+[image1]: ./images/cnn.png "CNN Architecture"
+
 # Behaviorial Cloning Project
 
 Overview
@@ -26,3 +29,15 @@ The following resources can be found in this github repository:
 * writeup.md
 
 The simulator can be downloaded from the classroom. In the classroom, we have also provided sample data that you can optionally use to help train your model.
+
+Architecture
+---
+For the project I used a vanilla CNN, whose architecture is based on one [paper](https://images.nvidia.com/content/tegra/automotive/images/2016/solutions/pdf/end-to-end-dl-using-px.pdf) from Nvidia. The only modification I did was to add one layer, after normalization, to crop the images from the virtual cam and get the superior part removed as non relevant for the task.  Here's the CNN:
+
+![cnn architecture][image1] 
+
+This is an end-to-end solution, meaning that the CNN, from the image stream, it infer directly the steering commands. 
+
+
+### Training
+For training the CNN I drove the simulated car and logged the telemetrics (and images from the a virtual cam on the windscreen) on disk. The data is loaded, augmented and split in 80-20 for training and validation. For more details, see the writeup.
