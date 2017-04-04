@@ -3,6 +3,9 @@ from keras.models import Sequential
 from keras.layers import Convolution2D, Dense, Flatten, Lambda, Cropping2D
 from keras.optimizers import Adam
 from keras.callbacks import EarlyStopping, ModelCheckpoint
+from keras import backend as K
+from keras.preprocessing.image import ImageDataGenerator
+
 
 import pandas as pd
 from sklearn.model_selection import train_test_split
@@ -22,7 +25,7 @@ class CNNModel:
         # column names
         self.columns = ('center', 'left', 'right', 'angle', 'throttle', 'break', 'speed')
 
-        self.angle_corr = {'center': 0.0, 'left': 0.22, 'right': -0.22}
+        self.angle_corr = {'center': 0.0, 'left': 0.18, 'right': -0.18}
 
         # path to csv file
         self.csv_path = csv_path
@@ -32,6 +35,8 @@ class CNNModel:
         self.current_path = os.path.dirname(csv_path) + '/IMG/'
 
         self.learning_rate = 2e-4
+
+        self.batch_size = 128
 
     def load_csv(self):
         """Read the csv and return the train and validation 
@@ -109,11 +114,19 @@ class CNNModel:
 
         return _model
 
-    def generator(self, _data, _batch_size):
+    def generator(self, _data, _batch_size, _is_training=False):
         """Returns a generator. For every batch, we choose randomly the
            center, right or left camera, applying the angle correction if
            needed. You get 60% of the times the center camera, remaining 20% 
            right and 20% left"""
+
+        if _is_training:
+            datagen = ImageDataGenerator(
+                rotation_range=4,
+                width_shift_range=0.03,
+                height_shift_range=0.03,
+                horizontal_flip=False)
+
         while 1:
 
             # split in chucks
@@ -126,10 +139,7 @@ class CNNModel:
                 # 20% is right or left
                 col = np.random.choice(self.columns,
                                        1,
-                                       p=[0.7, 0.15, 0.15, 0, 0, 0, 0])[0]
-
-                # TODO
-                #col = 'center'
+                                       p=[1.0, 0, 0, 0, 0, 0, 0])[0]
 
                 # get image paths as an array
                 paths = sample[:][col].values
@@ -146,6 +156,7 @@ class CNNModel:
                 # load the images
                 for idx, image_path in enumerate(paths):
                     image = cv2.imread(image_path)
+                    # image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
                     assert(image is not None)  # otherwise we keep going even...
                     images[idx] = image
 
@@ -156,9 +167,11 @@ class CNNModel:
                 # adjust the angles and return as a numpy array
                 angles = sample[:]['angle'].apply(lambda x: x + corr).values
 
-                # return the batch shuffled
-                yield shuffle(images, angles)
-
+                if _is_training:
+                    for _ in range(4):
+                        yield datagen.flow(images, angles).next()
+                else:
+                    yield(images, angles)
 
     def train(self):
 
@@ -168,9 +181,20 @@ class CNNModel:
         # create the cnn
         model = self.build_model()
 
+        # print the architecture
+        print(model.summary())
+
         # create the generators that will feed the keras training
-        train_gen = self.generator(df_train, _batch_size=32)
-        valid_gen = self.generator(df_valid, _batch_size=32)
+        train_gen = self.generator(df_train, _batch_size=self.batch_size, _is_training=True)
+        valid_gen = self.generator(df_valid, _batch_size=self.batch_size)
+
+        # verify the crop function
+        # crop = K.function([model.layers[0].input], [model.layers[1].output])
+        # for a in train_gen:
+        #    images = a[0]
+        #    cropped_images = crop([images])
+             # cropped_images[0] is (32, 105, 320, 3)
+        #    plt.imshow(cropped_images[0][0])
 
         checkpoint = ModelCheckpoint('model.h5', monitor='val_loss', verbose=1,
                                      save_best_only=True,
@@ -181,7 +205,7 @@ class CNNModel:
                                        mode='auto')
         # train the model
         history = model.fit_generator(train_gen,
-                            samples_per_epoch=len(df_train),
+                            samples_per_epoch=4*len(df_train),
                             validation_data=valid_gen,
                             nb_val_samples=len(df_valid),
                             nb_epoch=10,
@@ -194,9 +218,9 @@ class CNNModel:
         plt.ylabel('loss')
         plt.xlabel('epoch')
         plt.legend(['train', 'test'], loc='upper left')
+        plt.show()
 
 
 if __name__ == '__main__':
-    the_model = CNNModel('/Users/ice/Development/driving/driving_log.csv')
+    the_model = CNNModel('/Users/ice/Development/AA/run1/driving_log.csv')
     the_model.train()
-    pass
