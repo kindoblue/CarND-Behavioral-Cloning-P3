@@ -1,4 +1,4 @@
-#Behavioral Cloning Project
+# Behavioral Cloning Project
 ___
 
 The goals / steps of this project are the following:
@@ -19,53 +19,53 @@ The goals / steps of this project are the following:
 ###Here I will consider the [rubric points](https://review.udacity.com/#!/rubrics/432/view) individually and describe how I addressed each point in my implementation.  
 
 ---
-###Files Submitted & Code Quality
+### Files Submitted & Code Quality
 
-####1. Submission includes all required files and can be used to run the simulator in autonomous mode
+#### 1. Submission includes all required files and can be used to run the simulator in autonomous mode
 
 My project includes the following files:
 * model.py containing the script to create and train the model
 * drive.py for driving the car in autonomous mode
 * model.h5 containing a trained convolution neural network 
-* writeup_report.md or writeup_report.pdf summarizing the results
+* writeup.md or writeup_report.pdf summarizing the results
 
-####2. Submission includes functional code
+#### 2. Submission includes functional code
 Using the Udacity provided simulator and my drive.py file, the car can be driven autonomously around the track by executing 
 ```sh
 python drive.py model.h5
 ```
 
-####3. Submission code is usable and readable
+#### 3. Submission code is usable and readable
 
 The model.py file contains the code for training and saving the convolution neural network. The file shows the pipeline I used for training and validating the model, and it contains comments to explain how the code works.
 
-###Model Architecture and Training Strategy
+### Model Architecture and Training Strategy
 
-####1. An appropriate model architecture has been employed
+#### 1. An appropriate model architecture has been employed
 
 My model consists of a convolution neural network whose architecture was taken as is from the Nvidia [paper](https://images.nvidia.com/content/tegra/automotive/images/2016/solutions/pdf/end-to-end-dl-using-px.pdf).
 
 The data is normalized in the model using a Keras lambda layer (model.py line 103). Also, to increase effectiveness of the training data, I removed non-relevant part of the images from the virtual dash camera, by cropping them. (line 108) 
 
-####2. Attempts to reduce overfitting in the model
+#### 2. Attempts to reduce overfitting in the model
 
 To reduce overfitting I simply used data augmentation.  Keras comes with an utility class called `ImageDataGenerator` and I used that to slightly rotate and shift the images (model.py line 169) 
 
 The model was trained and validated on different data sets to ensure that the model was not overfitting (code line 93). The model was tested by running it through the simulator and ensuring that the vehicle could stay on the track.
 
-####3. Model parameter tuning
+#### 3. Model parameter tuning
 
 The model used an adam optimizer, so the learning rate was not tuned manually (model.py line 25).
 
-####4. Appropriate training data
+#### 4. Appropriate training data
 
 Training data was chosen to keep the vehicle driving on the road. At the beginning I wanted to use a combination of center left and right sides of the road, by using a weighted combination based on probability (model.py line 185) but during my experiments the right and left images didn't improve the training, even we different ranges of angle adjustement. At the end I decided to go only with the center camera 
 
 For details about how I created the training data, see the next section. 
 
-###Model Architecture and Training Strategy
+### Model Architecture and Training Strategy
 
-####1. Solution Design Approach
+#### 1. Solution Design Approach
 
 The overall strategy for deriving a model architecture was to following the suggestions from the lessons. An Nvidia paper was released about end-to-end solution. This seems a really good starting point.
 
@@ -79,7 +79,7 @@ After normalization of distribution and with pre-existing data augmentation I ma
 
 At the end of the process, the vehicle is able to drive autonomously around the track without leaving the road.  I could drive the simulator also in the second track and I believe I could get even better results but I had to wrap-up for time lack.
 
-####2. Final Model Architecture
+#### 2. Final Model Architecture
 
 The final model architecture (model.py lines 96-158) consisted of a convolution neural network with the following layers and layer sizes: 
 
@@ -120,6 +120,6 @@ Here is a visualization of the architecture (note: visualizing the architecture 
 
 ![cnn][image1]
 
-####3. Creation of the Training Set & Training Process
+#### 3. Creation of the Training Set & Training Process
 
 To capture good driving behavior, I first recorded two laps on track one using center lane driving. Then I recorded two laps going in the opposite direction, to have steering angles also in the other direction. After that, I tried to drive the car close to the margins of the roads, activate the recording and then move away from the side toward the center of the road. That's all, I didnt drive the other circuit. 
