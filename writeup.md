@@ -55,7 +55,7 @@ The model was trained and validated on different data sets to ensure that the mo
 
 #### 3. Model parameter tuning
 
-The model used an adam optimizer, so the learning rate was not tuned manually (model.py line 25).
+The model used an adam optimizer, but I used code to have the learning rate customizable (model.py line 154) but in the end I didnt touch it other than setting the first time after a quick look at the model loss graph I produced at the end of few runs.
 
 #### 4. Appropriate training data
 
