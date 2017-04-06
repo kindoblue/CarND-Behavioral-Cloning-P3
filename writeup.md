@@ -16,7 +16,7 @@ The goals / steps of this project are the following:
 
 
 ## Rubric Points
-###Here I will consider the [rubric points](https://review.udacity.com/#!/rubrics/432/view) individually and describe how I addressed each point in my implementation.  
+### Here I will consider the [rubric points](https://review.udacity.com/#!/rubrics/432/view) individually and describe how I addressed each point in my implementation.  
 
 ---
 ### Files Submitted & Code Quality
@@ -55,11 +55,11 @@ The model was trained and validated on different data sets to ensure that the mo
 
 #### 3. Model parameter tuning
 
-The model used an adam optimizer, but I used code to have the learning rate customizable (model.py line 154) but in the end I didnt touch it other than setting the first time after a quick look at the model loss graph I produced at the end of few runs.
+The model used an adam optimizer, but I used code to have the learning rate customizable (model.py line 154) but in the end I didnt touch it other than setting the first time, after a quick look at the model loss graph.
 
 #### 4. Appropriate training data
 
-Training data was chosen to keep the vehicle driving on the road. At the beginning I wanted to use a combination of center left and right sides of the road, by using a weighted combination based on probability (model.py line 185) but during my experiments the right and left images didn't improve the training, even we different ranges of angle adjustement. At the end I decided to go only with the center camera 
+Training data was chosen to keep the vehicle driving on the road. At the beginning I wanted to use a combination of center left and right sides of the road, by using a weighted combination based on probability (model.py line 185) but during my experiments the right and left images didn't improve the training, even with different ranges of angle adjustement. At the end I decided to go only with the center camera 
 
 For details about how I created the training data, see the next section. 
 
